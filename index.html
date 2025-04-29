@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>Hunting Zone Tracker</title>
+  <style>
+    body {
+      background: transparent;
+      font-size: 18px;
+      font-family: Arial, sans-serif;
+      text-align: center;
+      padding-top: 20px;
+      -webkit-app-region: drag;
+      user-select: none;
+    }
+    .zone {
+      margin-bottom: 10px;
+      color: #FFD700;
+    }
+    .zone.warning {
+      color: #FF4500;
+      font-weight: bold;
+    }
+    #toast-container {
+      position: fixed;
+      bottom: 30px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 9999;
+    }
+    .toast {
+      background-color: rgba(0, 0, 0, 0.7);
+      color: #FFD700;
+      padding: 10px 20px;
+      margin-top: 10px;
+      border-radius: 10px;
+      animation: fadeInOut 3s forwards;
+    }
+    @keyframes fadeInOut {
+      0% { opacity: 0; transform: translateY(20px); }
+      10% { opacity: 1; transform: translateY(0); }
+      90% { opacity: 1; transform: translateY(0); }
+      100% { opacity: 0; transform: translateY(-20px); }
+    }
+    .zone-item {
+      cursor: pointer;
+    }
+    .no-drag {
+      -webkit-app-region: no-drag;
+      user-select: text;
+    }
+    #log-container {
+      margin-top: 20px;
+      max-height: 200px;
+      overflow-y: scroll;
+      background: rgba(255, 255, 255, 0.05);
+      padding: 10px;
+      border-radius: 10px;
+      color: #ADFF2F;
+      font-size: 14px;
+      text-align: left;
+    }
+    input, button {
+      margin: 5px;
+      padding: 8px 12px;
+      border: none;
+      border-radius: 5px;
+      outline: none;
+    }
+    input {
+      background: rgba(255, 255, 255, 0.2);
+      color: #000;
+    }
+    button {
+      background-color: #FFD700;
+      color: #000;
+      font-weight: bold;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+    button:hover {
+      background-color: #FFB700;
+    }
+    #opacity-range {
+      width: 200px;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <h2>🛡️ Hunting Zone Tracker</h2>
+
+  <div>
+    <input id="zone-name" class="no-drag" type="text" placeholder="사냥터 이름" style="width: 120px;">
+    <input id="zone-time" class="no-drag" type="number" placeholder="분" style="width: 60px;">
+    <button class="no-drag" onclick="addZone()">추가</button>
+    <button class="no-drag" onclick="removeSelectedZone()">삭제</button>
+    <button class="no-drag" onclick="clearLog()">로그 초기화</button>
+    <input id="opacity-range" class="no-drag" type="range" min="0.5" max="1" step="0.05" value="1" onchange="changeOpacity()">
+  </div>
+
+  <div id="zones" style="margin-top: 20px;"></div>
+  <div id="toast-container"></div>
+  <div id="log-container"></div>
+
+<script>
+const zones = [];
+let selectedZoneIndex = -1;
+
+function formatTime(seconds) {
+  const m = String(Math.floor(seconds / 60)).padStart(2, '0');
+  const s = String(seconds % 60).padStart(2, '0');
+  return `${m}:${s}`;
+}
+
+function currentTimeString() {
+  const now = new Date();
+  const h = String(now.getHours()).padStart(2, '0');
+  const m = String(now.getMinutes()).padStart(2, '0');
+  const s = String(now.getSeconds()).padStart(2, '0');
+  return `${h}:${m}:${s}`;
+}
+
+function updateDisplay() {
+  const zonesDiv = document.getElementById('zones');
+  zonesDiv.innerHTML = '';
+  zones.forEach((zone, index) => {
+    const div = document.createElement('div');
+    div.className = 'zone zone-item no-drag';
+    div.setAttribute('data-index', index);
+    div.onclick = () => selectZone(index);
+    if (zone.secondsLeft <= 60) {
+      div.classList.add('warning');
+    }
+    if (index === selectedZoneIndex) {
+      div.style.border = '2px solid #FFD700';
+      div.style.borderRadius = '5px';
+      div.style.padding = '3px';
+      div.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
+    }
+    div.textContent = `${zone.name} - ${formatTime(zone.secondsLeft)} 남음`;
+    zonesDiv.appendChild(div);
+  });
+}
+
+function showToast(message) {
+  const toastContainer = document.getElementById('toast-container');
+  const toast = document.createElement('div');
+  toast.className = 'toast';
+  toast.textContent = message;
+  toastContainer.appendChild(toast);
+  setTimeout(() => {
+    toast.remove();
+  }, 3000);
+}
+
+function addZone() {
+  const nameInput = document.getElementById('zone-name');
+  const timeInput = document.getElementById('zone-time');
+  const name = nameInput.value.trim();
+  const minutes = parseInt(timeInput.value.trim());
+
+  if (!name || isNaN(minutes) || minutes <= 0) {
+    showToast("⚠️ 사냥터 이름과 시간을 정확히 입력하세요!");
+    nameInput.focus();
+    return;
+  }
+
+  zones.push({
+    name: name,
+    secondsLeft: minutes * 60,
+    interval: minutes * 60
+  });
+
+  nameInput.value = '';
+  timeInput.value = '';
+  updateDisplay();
+  nameInput.focus();
+}
+
+function removeSelectedZone() {
+  if (selectedZoneIndex === -1) {
+    showToast("⚠️ 삭제할 사냥터를 선택하세요.");
+    return;
+  }
+  zones.splice(selectedZoneIndex, 1);
+  selectedZoneIndex = -1;
+  updateDisplay();
+}
+
+function selectZone(index) {
+  selectedZoneIndex = index;
+  updateDisplay();
+}
+
+function addLog(message) {
+  const logContainer = document.getElementById('log-container');
+  const logEntry = document.createElement('div');
+  logEntry.textContent = message;
+  logContainer.appendChild(logEntry);
+  logContainer.scrollTop = logContainer.scrollHeight;
+}
+
+function clearLog() {
+  const logContainer = document.getElementById('log-container');
+  logContainer.innerHTML = '';
+}
+
+function tick() {
+  zones.forEach(zone => {
+    if (zone.secondsLeft > 0) {
+      zone.secondsLeft--;
+    } else {
+      const message = `[${currentTimeString()}] ${zone.name} 리젠!`;
+      showToast(message);
+      addLog(message);
+      zone.secondsLeft = zone.interval;
+    }
+  });
+  updateDisplay();
+}
+
+function changeOpacity() {
+  const opacity = document.getElementById('opacity-range').value;
+  document.body.style.opacity = opacity;
+}
+
+setInterval(tick, 1000);
+updateDisplay();
+</script>
+
+</body>
+</html>
